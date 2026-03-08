@@ -1,0 +1,9 @@
+# File type settings
+*.py text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.csv text eol=crlf
+*.xlsx binary
+*.pkl binary
+.gitignore text eol=lf

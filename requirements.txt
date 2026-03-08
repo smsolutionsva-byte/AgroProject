@@ -1,0 +1,14 @@
+streamlit
+pandas
+numpy
+requests
+joblib
+folium
+streamlit-folium
+geopy
+scikit-learn
+flask
+duckduckgo-search
+google-genai
+python-dotenv
+google-genai
