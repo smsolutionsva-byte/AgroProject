@@ -4,6 +4,7 @@ from duckduckgo_search import DDGS
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from geopy.geocoders import Nominatim
 from utils.ui import inject_global_css, render_sidebar, page_header
 from utils.gemini import ai_relief_plan
 
@@ -105,6 +106,32 @@ DISASTER_TIPS = {
 }
 
 
+def get_location_hierarchy(place_name: str) -> list:
+    """Takes a place and returns a zoomed-out list: [City, State, Country]"""
+    geolocator = Nominatim(user_agent="agro_relief_cascader", timeout=10)
+    try:
+        loc = geolocator.geocode(place_name, addressdetails=True)
+        if not loc:
+            return [place_name]
+            
+        address = loc.raw.get('address', {})
+        hierarchy = []
+        
+        # Grab levels from smallest to largest
+        for key in ['city', 'town', 'county', 'state_district', 'state', 'country']:
+            val = address.get(key)
+            if val and val not in hierarchy:
+                hierarchy.append(val)
+                
+        # Ensure the original search is always at the front
+        if place_name not in hierarchy:
+            hierarchy.insert(0, place_name)
+            
+        return hierarchy
+    except Exception as e:
+        return [place_name]
+
+
 def _match_region(location: str):
     loc = location.lower()
     for region_data in REGION_DATA.values():
@@ -113,9 +140,22 @@ def _match_region(location: str):
     return None
 
 
-def build_farmer_guide(location: str, disaster_type: str) -> tuple[str, str]:
-    """Build a localized action guide and return (guide_text, official_url)."""
-    region = _match_region(location)
+def build_farmer_guide(location: str, disaster_type: str) -> tuple[str, str, str]:
+    """Build a localized action guide and return (guide_text, official_url, matched_level)."""
+    
+    # 🚨 THE MAGIC: Get the [City, State, Country] list!
+    hierarchy = get_location_hierarchy(location)
+    
+    region = None
+    matched_level = location
+    
+    # Loop through from smallest to biggest until we find a match in REGION_DATA
+    for level in hierarchy:
+        region = _match_region(level)
+        if region:
+            matched_level = level
+            break # We found the cheese! Stop looking!
+
 
     if region:
         where = region["where"]
@@ -128,7 +168,8 @@ def build_farmer_guide(location: str, disaster_type: str) -> tuple[str, str]:
         doc_land = "Property deeds, leases, or official tax records."
         official_url = ""
 
-    guide = f"**Relief Protocol for {location.title()} — {disaster_type.title()}**\n\n"
+    # Build the guide using the matched level so it makes sense to the user
+    guide = f"**Relief Protocol for {matched_level.title()} — {disaster_type.title()}**\n\n"
     guide += "**Where to Apply:**\n" + where + "\n"
     guide += "**Documents Required:**\n"
     guide += f"- Identification: {doc_id}\n"
@@ -140,21 +181,24 @@ def build_farmer_guide(location: str, disaster_type: str) -> tuple[str, str]:
     if tip:
         guide += f"**Pro Tip:** {tip}\n"
 
-    return guide, official_url
+    # Notice we are returning THREE things now!
+    return guide, official_url, matched_level
 
 
 # ── Web search with caching ─────────────────────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=3600)
 def fetch_schemes(location: str, disaster_type: str):
-    guide, official_url = build_farmer_guide(location, disaster_type)
+    # 🚨 Catch the new matched_level variable!
+    guide, official_url, matched_level = build_farmer_guide(location, disaster_type)
     results = []
 
     if official_url:
         results.append({
             "location": location.lower(),
             "disaster_type": disaster_type.lower(),
-            "scheme_name": f"Official {location.title()} Relief Portal",
-            "description": f"Verified government contact point for {disaster_type.lower()} disaster relief.",
+            # 🚨 Show the user that we found the State/Country portal instead of the City!
+            "scheme_name": f"Official {matched_level.title()} Relief Portal",
+            "description": f"Verified government contact point for {disaster_type.lower()} disaster relief (Matched via {matched_level.title()}).",
             "source_link": official_url,
             "date_added": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "application_guide": guide,

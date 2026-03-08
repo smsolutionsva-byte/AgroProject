@@ -173,6 +173,9 @@ with col_map:
             st.session_state["location_name"] = "Map Selection"
             st.rerun()
 
+    # 🚨 NEW: Create an invisible parking spot for the briefing!
+    briefing_placeholder = st.empty()
+
 
 # ── Fetch & Predict ──────────────────────────────────────────────────────────
 lat, lon = st.session_state["lat"], st.session_state["lon"]
@@ -351,9 +354,11 @@ with col_analysis:
             res['d_prob'], res['h_prob'], res['f_prob'], feat_summary
         )
         if briefing:
-            st.markdown("""
-            <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
-                        letter-spacing: 0.5px; color: #64748b; margin: 1rem 0 0.5rem;">
-                AI Hazard Briefing</div>
-            """, unsafe_allow_html=True)
-            st.markdown(f'<div class="glass-card" style="border-left: 3px solid #6366f1;">{briefing}</div>', unsafe_allow_html=True)
+            # 🚨 NEW: Teleport the UI straight to the left side parking spot!
+            with briefing_placeholder:
+                st.markdown("""
+                <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+                            letter-spacing: 0.5px; color: #64748b; margin: 1rem 0 0.5rem;">
+                    AI Hazard Briefing</div>
+                """, unsafe_allow_html=True)
+                st.markdown(f'<div class="glass-card" style="border-left: 3px solid #6366f1;">{briefing}</div>', unsafe_allow_html=True)
